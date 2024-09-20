@@ -519,6 +519,8 @@ public class QuorumCnxManager {
                     new BufferedInputStream(sock.getInputStream()));
 
             LOG.debug("Sync handling of connection request received from: {}", sock.getRemoteSocketAddress());
+
+            //处理连接信息
             handleConnection(sock, din);
         } catch (IOException e) {
             LOG.error("Exception handling connection, addr: {}, closing server connection",
@@ -568,6 +570,7 @@ public class QuorumCnxManager {
         InetSocketAddress electionAddr = null;
 
         try {
+            //读取发送选举的机器ID
             protocolVersion = din.readLong();
             if (protocolVersion >= 0) { // this is a server id and not a protocol version
                 sid = protocolVersion;
@@ -600,6 +603,7 @@ public class QuorumCnxManager {
         // do authenticating learner
         authServer.authenticate(sock, din);
         //If wins the challenge, then close the new connection.
+        /** 判断接受到的链接请求，如果sid比自己小则关闭重新建立。避免双方同时建立 */
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -615,20 +619,30 @@ public class QuorumCnxManager {
              * Now we start a new connection
              */
             LOG.debug("Create new connection to server: {}", sid);
+
+            //如果发送选举的机器id小于当前机器则关闭连接，为了防止机器之间相互重复建立socket连接（双向的），zk不应许id小的机器连接id大的机器
             closeSocket(sock);
 
             if (electionAddr != null) {
+                //当前机器主动发起socket连接到发送选举的id较小的机器
                 connectOne(sid, electionAddr);
             } else {
                 connectOne(sid);
             }
         } else if (sid == self.getId()) {
             // we saw this case in ZOOKEEPER-2164
+
+            //一般不可能发送，可能是bug
+
             LOG.warn("We got a connection request from a server with our own ID. "
                     + "This should be either a configuration error, or a bug.");
-        } else { // Otherwise start worker threads to receive data.
+        } else {
+            // Otherwise start worker threads to receive data.
+            //给发送选票sid这台机器创建一个选票发送器
             SendWorker sw = new SendWorker(sock, sid);
+
             RecvWorker rw = new RecvWorker(sock, din, sid, sw);
+
             sw.setRecv(rw);
 
             SendWorker vsw = senderWorkerMap.get(sid);
@@ -637,12 +651,16 @@ public class QuorumCnxManager {
                 vsw.finish();
             }
 
+            //将选票发送器与sid对应放入map
             senderWorkerMap.put(sid, sw);
 
+            //给发送选票sid机器初始化一个发送选票队列放入map
             queueSendMap.putIfAbsent(sid,
                     new ArrayBlockingQueue<ByteBuffer>(SEND_CAPACITY));
 
+            //启动选票发送器线程
             sw.start();
+
             rw.start();
         }
     }
@@ -655,8 +673,11 @@ public class QuorumCnxManager {
         /*
          * If sending message to myself, then simply enqueue it (loopback).
          */
+
         if (this.mySid == sid) {
+             //如果选举接收机器就是自己则放入自己的接收队列里recvQueue.add(msg)
              b.position(0);
+
              addToRecvQueue(new Message(b.duplicate(), sid));
             /*
              * Otherwise send to the corresponding thread to send.
@@ -667,12 +688,18 @@ public class QuorumCnxManager {
               */
              ArrayBlockingQueue<ByteBuffer> bq = new ArrayBlockingQueue<ByteBuffer>(
                 SEND_CAPACITY);
+
              ArrayBlockingQueue<ByteBuffer> oldq = queueSendMap.putIfAbsent(sid, bq);
+
              if (oldq != null) {
+
                  addToSendQueue(oldq, b);
              } else {
+                 //放入传输层待发送队列
                  addToSendQueue(bq, b);
              }
+
+             //与对方sid机器建立连接
              connectOne(sid);
 
         }
@@ -917,6 +944,7 @@ public class QuorumCnxManager {
 
                     ss.setReuseAddress(true);
 
+                    //获取选举配置，监听端口
                     if (self.getQuorumListenOnAllIPs()) {
                         int port = self.getElectionAddress().getPort();
                         addr = new InetSocketAddress(port);
@@ -931,6 +959,7 @@ public class QuorumCnxManager {
                     ss.bind(addr);
                     while (!shutdown) {
                         try {
+                            //在选举端口监听连接，选举使用普通的socket通信
                             client = ss.accept();
                             setSockOpts(client);
                             LOG.info("Received connection request from {}", client.getRemoteSocketAddress());
@@ -942,6 +971,7 @@ public class QuorumCnxManager {
                             if (quorumSaslAuthEnabled) {
                                 receiveConnectionAsync(client);
                             } else {
+                                //接受连接
                                 receiveConnection(client);
                             }
                             numRetries = 0;
@@ -1119,11 +1149,13 @@ public class QuorumCnxManager {
                  * message than that stored in lastMessage. To avoid sending
                  * stale message, we should send the message in the send queue.
                  */
+                //取出发送选票队列
                 ArrayBlockingQueue<ByteBuffer> bq = queueSendMap.get(sid);
                 if (bq == null || isSendQueueEmpty(bq)) {
                    ByteBuffer b = lastMessageSent.get(sid);
                    if (b != null) {
                        LOG.debug("Attempting to send lastMessage to sid=" + sid);
+                       //发送选票
                        send(b);
                    }
                 }
@@ -1233,8 +1265,12 @@ public class QuorumCnxManager {
                      * Allocates a new ByteBuffer to receive the message
                      */
                     byte[] msgArray = new byte[length];
+
                     din.readFully(msgArray, 0, length);
+
                     ByteBuffer message = ByteBuffer.wrap(msgArray);
+
+                    //最终将接受到的选举丢入recvQueue中异步处理
                     addToRecvQueue(new Message(message.duplicate(), sid));
                 }
             } catch (Exception e) {

@@ -162,6 +162,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         this.tickTime = tickTime;
         setMinSessionTimeout(minSessionTimeout);
         setMaxSessionTimeout(maxSessionTimeout);
+        //监听follower节点的socket连接
         listener = new ZooKeeperServerListenerImpl(this);
         LOG.info("Created server with tickTime " + tickTime
                 + " minSessionTimeout " + getMinSessionTimeout()
@@ -455,12 +456,16 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (sessionTracker == null) {
             createSessionTracker();
         }
+
         startSessionTracker();
+
+        //构建leader请求处理链
         setupRequestProcessors();
 
         registerJMX();
 
         setState(State.RUNNING);
+
         notifyAll();
     }
 

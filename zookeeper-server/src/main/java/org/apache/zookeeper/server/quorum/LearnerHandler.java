@@ -447,7 +447,7 @@ public class LearnerHandler extends ZooKeeperThread {
             peerLastZxid = ss.getLastZxid();
            
             // Take any necessary action if we need to send TRUNC or DIFF
-            // startForwarding() will be called in all cases
+            // startForwarding() will be called in all cases，是将当前learnerHandler放入到forwardingFollowers
             boolean needSnap = syncFollower(peerLastZxid, leader.zk.getZKDatabase(), leader);
             
             /* if we are not truncating or sending a diff just send a snapshot */
@@ -494,6 +494,7 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput.flush();
 
             // Start thread that blast packets in the queue to learner
+            //启动一个线程，向follower同步消息
             startSendingPackets();
             
             /*
@@ -534,6 +535,7 @@ public class LearnerHandler extends ZooKeeperThread {
             LOG.debug("Sending UPTODATE message to " + sid);      
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
 
+            //不断从网络中读取消息
             while (true) {
                 qp = new QuorumPacket();
                 ia.readRecord(qp, "packet");

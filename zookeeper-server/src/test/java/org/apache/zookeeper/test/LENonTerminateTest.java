@@ -224,7 +224,7 @@ public class LENonTerminateTest extends ZKTestCase {
                     new QuorumMaj(quorumPeers));
         }
 
-        protected  Election createElectionAlgorithm(int electionAlgorithm){
+        @Override protected  Election createElectionAlgorithm(int electionAlgorithm){
             LOG.info("Returning mocked leader election");
             return new MockLeaderElection(this);
         }

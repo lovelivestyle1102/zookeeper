@@ -109,14 +109,18 @@ public class QuorumPeerMain {
         throws ConfigException, IOException, AdminServerException
     {
         QuorumPeerConfig config = new QuorumPeerConfig();
+
+        //解析配置文件加载到内存
         if (args.length == 1) {
             config.parse(args[0]);
         }
 
         // Start and schedule the the purge task
+        //清理快照文件任务
         DatadirCleanupManager purgeMgr = new DatadirCleanupManager(config
                 .getDataDir(), config.getDataLogDir(), config
                 .getSnapRetainCount(), config.getPurgeInterval());
+
         purgeMgr.start();
 
         if (args.length == 1 && config.isDistributed()) {
@@ -141,10 +145,13 @@ public class QuorumPeerMain {
       LOG.info("Starting quorum peer");
       try {
           ServerCnxnFactory cnxnFactory = null;
+
           ServerCnxnFactory secureCnxnFactory = null;
 
           if (config.getClientPortAddress() != null) {
+              //处理客户端连接
               cnxnFactory = ServerCnxnFactory.createFactory();
+
               cnxnFactory.configure(config.getClientPortAddress(),
                       config.getMaxClientCnxns(),
                       false);
@@ -157,15 +164,22 @@ public class QuorumPeerMain {
                       true);
           }
 
+          //获取本服务节点对象
           quorumPeer = getQuorumPeer();
+
+          //事务快照日志
           quorumPeer.setTxnFactory(new FileTxnSnapLog(
                       config.getDataLogDir(),
                       config.getDataDir()));
+
           quorumPeer.enableLocalSessions(config.areLocalSessionsEnabled());
           quorumPeer.enableLocalSessionsUpgrading(
               config.isLocalSessionsUpgradingEnabled());
           //quorumPeer.setQuorumPeers(config.getAllMembers());
+
+          //设置选举类型，默认为3
           quorumPeer.setElectionType(config.getElectionAlg());
+
           quorumPeer.setMyid(config.getServerId());
           quorumPeer.setTickTime(config.getTickTime());
           quorumPeer.setMinSessionTimeout(config.getMinSessionTimeout());
@@ -173,12 +187,17 @@ public class QuorumPeerMain {
           quorumPeer.setInitLimit(config.getInitLimit());
           quorumPeer.setSyncLimit(config.getSyncLimit());
           quorumPeer.setConfigFileName(config.getConfigFilename());
+
+          //初始化内存数据库对象
           quorumPeer.setZKDatabase(new ZKDatabase(quorumPeer.getTxnFactory()));
+
           quorumPeer.setQuorumVerifier(config.getQuorumVerifier(), false);
           if (config.getLastSeenQuorumVerifier()!=null) {
               quorumPeer.setLastSeenQuorumVerifier(config.getLastSeenQuorumVerifier(), false);
           }
           quorumPeer.initConfigInZKDatabase();
+
+          //讲上面创建的初始服务连接对象放入本服务节点对象
           quorumPeer.setCnxnFactory(cnxnFactory);
           quorumPeer.setSecureCnxnFactory(secureCnxnFactory);
           quorumPeer.setSslQuorum(config.isSslQuorum());
@@ -199,10 +218,14 @@ public class QuorumPeerMain {
               quorumPeer.setQuorumServerLoginContext(config.quorumServerLoginContext);
               quorumPeer.setQuorumLearnerLoginContext(config.quorumLearnerLoginContext);
           }
+
           quorumPeer.setQuorumCnxnThreadsSize(config.quorumCnxnThreadsSize);
+
           quorumPeer.initialize();
-          
+
+          //启动服务节点
           quorumPeer.start();
+
           quorumPeer.join();
       } catch (InterruptedException e) {
           // warn, but generally this is ok

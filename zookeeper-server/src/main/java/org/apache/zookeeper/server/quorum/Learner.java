@@ -198,8 +198,10 @@ public class Learner {
      */
     protected QuorumServer findLeader() {
         QuorumServer leaderServer = null;
+
         // Find the leader by id
         Vote current = self.getCurrentVote();
+
         for (QuorumServer s : self.getView().values()) {
             if (s.id == current.getId()) {
                 // Ensure we have the leader's correct IP address before
@@ -259,7 +261,9 @@ public class Learner {
                     throw new IOException("initLimit exceeded on retries.");
                 }
 
+                //
                 sockConnect(sock, addr, Math.min(self.tickTime * self.syncLimit, remainingInitLimitTime));
+
                 if (self.isSslQuorum())  {
                     ((SSLSocket) sock).startHandshake();
                 }
@@ -429,7 +433,9 @@ public class Learner {
                 System.exit(13);
 
             }
+
             zk.getZKDatabase().initConfigInZKDatabase(self.getQuorumVerifier());
+
             zk.createSessionTracker();            
             
             long lastQueued = 0;
@@ -566,10 +572,16 @@ public class Learner {
                 }
             }
         }
+
         ack.setZxid(ZxidUtils.makeZxid(newEpoch, 0));
+
         writePacket(ack, true);
+
         sock.setSoTimeout(self.tickTime * self.syncLimit);
+
+        //初始化处理调用链
         zk.startup();
+
         /*
          * Update the election vote here to ensure that all members of the
          * ensemble report the same vote to new servers that start up and

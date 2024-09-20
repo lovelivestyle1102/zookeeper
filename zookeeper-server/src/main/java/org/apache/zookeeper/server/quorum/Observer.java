@@ -43,7 +43,7 @@ public class Observer extends Learner{
 
     Observer(QuorumPeer self,ObserverZooKeeperServer observerZooKeeperServer) {
         this.self = self;
-        this.zk=observerZooKeeperServer;
+        this.zk = observerZooKeeperServer;
     }
 
     @Override
@@ -67,12 +67,17 @@ public class Observer extends Learner{
             LOG.info("Observing " + leaderServer.addr);
             try {
                 connectToLeader(leaderServer.addr, leaderServer.hostname);
+
                 long newLeaderZxid = registerWithLeader(Leader.OBSERVERINFO);
+
                 if (self.isReconfigStateChange())
                    throw new Exception("learned about role change");
- 
+
+
                 syncWithLeader(newLeaderZxid);
+
                 QuorumPacket qp = new QuorumPacket();
+
                 while (this.isRunning()) {
                     readPacket(qp);
                     processPacket(qp);

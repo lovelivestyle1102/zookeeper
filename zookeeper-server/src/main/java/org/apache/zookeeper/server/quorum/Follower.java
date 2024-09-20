@@ -72,21 +72,33 @@ public class Follower extends Learner{
         self.end_fle = 0;
         fzk.registerJMX(new FollowerBean(this, zk), self.jmxLocalPeerBean);
         try {
+
+            //获取leader server
             QuorumServer leaderServer = findLeader();            
             try {
+
+                //主动向leader发起socket连接
                 connectToLeader(leaderServer.addr, leaderServer.hostname);
+
+                //注册自己到leader
                 long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);
+
                 if (self.isReconfigStateChange())
                    throw new Exception("learned about role change");
                 //check to see if the leader zxid is lower than ours
                 //this should never happen but is just a safety check
+
                 long newEpoch = ZxidUtils.getEpochFromZxid(newEpochZxid);
+
                 if (newEpoch < self.getAcceptedEpoch()) {
                     LOG.error("Proposed leader epoch " + ZxidUtils.zxidToString(newEpochZxid)
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
-                syncWithLeader(newEpochZxid);                
+
+                //同步leader数据
+                syncWithLeader(newEpochZxid);
+
                 QuorumPacket qp = new QuorumPacket();
                 while (this.isRunning()) {
                     readPacket(qp);

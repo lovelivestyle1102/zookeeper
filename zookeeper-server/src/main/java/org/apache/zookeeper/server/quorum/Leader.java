@@ -391,6 +391,7 @@ public class Leader {
                     Socket s = null;
                     boolean error = false;
                     try {
+
                         s = ss.accept();
 
                         // start with the initLimit, once the ack is processed
@@ -400,7 +401,10 @@ public class Leader {
 
                         BufferedInputStream is = new BufferedInputStream(
                                 s.getInputStream());
+
                         LearnerHandler fh = new LearnerHandler(s, is, Leader.this);
+
+                        //接收follower数据并开启线程处理
                         fh.start();
                     } catch (SocketException e) {
                         error = true;
@@ -470,6 +474,8 @@ public class Leader {
 
         try {
             self.tick.set(0);
+
+            //初始化LeaderZookeeperServer数据
             zk.loadData();
 
             leaderStateSummary = new StateSummary(self.getCurrentEpoch(), zk.getLastProcessedZxid());
@@ -477,6 +483,8 @@ public class Leader {
             // Start thread that waits for connection requests from
             // new followers.
             cnxAcceptor = new LearnerCnxAcceptor();
+
+            //同步数据给从节点
             cnxAcceptor.start();
 
             long epoch = getEpochToPropose(self.getId(), self.getAcceptedEpoch());
@@ -528,6 +536,7 @@ public class Leader {
             }
             
             newLeaderProposal.addQuorumVerifier(self.getQuorumVerifier());
+
             if (self.getLastSeenQuorumVerifier().getVersion() > self.getQuorumVerifier().getVersion()){
                newLeaderProposal.addQuorumVerifier(self.getLastSeenQuorumVerifier());
             }
@@ -654,6 +663,8 @@ public class Leader {
                     }
                     tickSkip = !tickSkip;
                 }
+
+                //leader跟所有follower定时发送ping请求保持长连接
                 for (LearnerHandler f : getLearners()) {
                     f.ping();
                 }
@@ -1310,6 +1321,7 @@ public class Leader {
         Long designatedLeader = getDesignatedLeader(newLeaderProposal, zk.getZxid());                                         
 
         self.processReconfig(newQV, designatedLeader, zk.getZxid(), true);
+
         if (designatedLeader != self.getId()) {
             allowedToCommit = false;
         }
